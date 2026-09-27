@@ -1,19 +1,22 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
+import StationCard from "./components/StationCard.vue";
+import {
+  FROZEN_STATUS,
+  isFrozen,
+  isWithinTolerance,
+  makeStocktake,
+  pendingStocktake,
+  statusAfterUpdate,
+  type RecordItem
+} from "./inventoryRules";
+import { loadRecords, saveRecords } from "./storage";
 
 type Field = {
   key: string;
   label: string;
   type?: "number" | "date" | "select";
   options?: readonly string[];
-};
-
-type RecordItem = {
-  id: string;
-  status: string;
-  notes: string;
-  createdAt: string;
-  [key: string]: string | number;
 };
 
 const project = {
@@ -91,7 +94,8 @@ const project = {
   "metricLabels": [
     "油站数",
     "营业中",
-    "库存紧张"
+    "库存紧张",
+    "盘点冻结"
   ]
 } as const;
 
@@ -102,23 +106,15 @@ function createBlank() {
   return Object.fromEntries(fields.map((field) => [field.key, field.type === "number" ? 0 : ""]));
 }
 
-function loadRecords(): RecordItem[] {
-  const raw = localStorage.getItem(project.storageKey);
-  if (!raw) {
-    return project.records.map((record, index) => ({
-      ...record,
-      id: `seed-${index + 1}`,
-      createdAt: new Date(Date.now() - index * 86400000).toISOString()
-    })) as RecordItem[];
-  }
-  try {
-    return JSON.parse(raw) as RecordItem[];
-  } catch {
-    return [];
-  }
+function seedRecords(): RecordItem[] {
+  return project.records.map((record, index) => ({
+    ...record,
+    id: `seed-${index + 1}`,
+    createdAt: new Date(Date.now() - index * 86400000).toISOString()
+  })) as RecordItem[];
 }
 
-const records = ref<RecordItem[]>(loadRecords());
+const records = ref<RecordItem[]>(loadRecords(project.storageKey, seedRecords));
 const form = reactive<Record<string, string | number>>(createBlank());
 const note = ref("");
 const filter = ref(project.filters[0]);
@@ -128,26 +124,25 @@ const filteredRecords = computed(() => {
   return records.value.filter((record) => Object.values(record).includes(filter.value));
 });
 
-const metrics = computed(() => {
-  const total = records.value.length;
-  const second = records.value.filter((record) => record.status === statuses[1]).length;
-  const third = records.value.filter((record) => record.status === statuses[2]).length;
-  const numberValues = records.value.flatMap((record) =>
-    fields.filter((field) => field.type === "number").map((field) => Number(record[field.key] || 0))
-  );
-  const sum = numberValues.reduce((acc, value) => acc + value, 0);
-  return [total, second || sum, third || Math.round(sum / Math.max(total, 1))];
-});
+const metrics = computed(() =>
+  project.metricLabels.map((label) =>
+    label === "油站数"
+      ? records.value.length
+      : records.value.filter((record) => record.status === label).length
+  )
+);
 
-const chartRows = computed(() => statuses.map((status) => ({
-  status,
-  value: records.value.filter((record) => record.status === status).length
-})));
+const chartRows = computed(() =>
+  [...statuses, FROZEN_STATUS].map((status) => ({
+    status,
+    value: records.value.filter((record) => record.status === status).length
+  }))
+);
 
 const maxChart = computed(() => Math.max(1, ...chartRows.value.map((row) => row.value)));
 
 function persist() {
-  localStorage.setItem(project.storageKey, JSON.stringify(records.value));
+  saveRecords(project.storageKey, records.value);
 }
 
 function nextStatus(status: string) {
@@ -178,12 +173,54 @@ function submit() {
 }
 
 function flow(record: RecordItem) {
+  if (isFrozen(record)) return; // 盘点冻结期间不能流转
   record.status = nextStatus(record.status);
   persist();
 }
 
 function remove(id: string) {
+  const target = records.value.find((record) => record.id === id);
+  if (target && isFrozen(target)) return; // 盘点冻结期间不能移出
   records.value = records.value.filter((record) => record.id !== id);
+  persist();
+}
+
+// 营业中的站点填写实盘量后进入盘点冻结;差异不超过 3% 直接更新
+function startStocktake(record: RecordItem, actual: number, countedBy: string) {
+  if (record.status !== "营业中" || isFrozen(record)) return;
+  const entry = makeStocktake(actual, Number(record.stock) || 0, countedBy, record.status);
+  record.stocktakes = [...(record.stocktakes ?? []), entry];
+  if (isWithinTolerance(entry)) {
+    entry.state = "auto-applied";
+    record.stock = entry.actualStock;
+    record.status = statusAfterUpdate(entry.actualStock);
+  } else {
+    record.status = FROZEN_STATUS;
+  }
+  persist();
+}
+
+// 另一名人员放行:按实盘更新库存,并按一万升线判定状态
+function approveStocktake(record: RecordItem, reviewedBy: string) {
+  const entry = pendingStocktake(record);
+  if (!entry) return;
+  entry.state = "approved";
+  entry.reviewedBy = reviewedBy;
+  entry.reviewedAt = new Date().toISOString();
+  record.stock = entry.actualStock;
+  record.status = statusAfterUpdate(entry.actualStock);
+  persist();
+}
+
+// 退回:恢复原来的状态和库存
+function rejectStocktake(record: RecordItem, reviewedBy: string) {
+  const entry = pendingStocktake(record);
+  if (!entry) return;
+  entry.state = "rejected";
+  entry.reviewedBy = reviewedBy;
+  entry.reviewedAt = new Date().toISOString();
+  record.stock = entry.bookStock;
+  record.status = entry.previousStatus;
   persist();
 }
 </script>
@@ -239,21 +276,19 @@ function remove(id: string) {
 
           <div class="record-grid">
             <div v-if="filteredRecords.length === 0" class="empty">暂无匹配数据</div>
-            <article v-for="record in filteredRecords" :key="record.id" class="record">
-              <div class="record-head">
-                <p class="record-title">{{ primaryText(record) }}</p>
-                <span class="status">{{ record.status }}</span>
-              </div>
-              <div class="details">
-                <span v-for="field in fields" :key="field.key">{{ field.label }}: {{ record[field.key] }}</span>
-              </div>
-              <p class="note">{{ record.notes }}</p>
-              <div class="actions">
-                <button type="button" @click="flow(record)">流转状态</button>
-                <button class="secondary" type="button" @click="navigator.clipboard?.writeText(primaryText(record))">复制摘要</button>
-                <button class="danger" type="button" @click="remove(record.id)">删除</button>
-              </div>
-            </article>
+            <StationCard
+              v-for="record in filteredRecords"
+              :key="record.id"
+              :record="record"
+              :fields="fields"
+              :title="primaryText(record)"
+              @flow="flow"
+              @remove="remove"
+              @copy="(target) => navigator.clipboard?.writeText(primaryText(target))"
+              @start-stocktake="startStocktake"
+              @approve="approveStocktake"
+              @reject="rejectStocktake"
+            />
           </div>
 
           <div class="mini-chart">
