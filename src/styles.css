@@ -83,7 +83,7 @@ h1 {
 
 .metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 18px;
 }
@@ -194,6 +194,186 @@ textarea {
   white-space: nowrap;
 }
 
+.status-low { background: #fdf0e3; color: #b45309; }
+.status-paused { background: #eceff3; color: #5b667a; }
+.status-frozen { background: #e7edff; color: #3348a0; }
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.tab {
+  background: #fff;
+  color: #445069;
+  border: 1px solid #d9e2ee;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tab-active {
+  background: #176b87;
+  color: #fff;
+  border-color: #176b87;
+}
+
+.tab-badge {
+  background: #c84b31;
+  color: #fff;
+  border-radius: 999px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.count-box, .freeze-box {
+  border: 1px dashed #b9c9dd;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 0 0 12px;
+  background: #fff;
+}
+
+.freeze-box {
+  border-style: solid;
+  border-color: #aabcf0;
+  background: #f4f7ff;
+}
+
+.count-row, .review-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.count-field, .review-field {
+  flex: 1 1 180px;
+}
+
+.count-row button, .review-row button {
+  white-space: nowrap;
+}
+
+.count-hint {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #5b667a;
+}
+
+.hint-ok { color: #14724f; }
+.hint-warn { color: #b45309; }
+
+.freeze-grid, .session-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 14px;
+  margin-bottom: 12px;
+  color: #33405c;
+  font-size: 13px;
+}
+
+.review-row .danger { flex: 0 0 auto; }
+
+.count-message {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.msg-ok { background: #e8f4ef; color: #14724f; }
+.msg-error { background: #fbeae6; color: #a63a22; }
+
+.ledger-toolbar { align-items: flex-end; }
+
+.toolbar-controls {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.counter-input {
+  width: 200px;
+  font-size: 13px;
+  gap: 4px;
+}
+
+.rules-panel, .archive-panel { width: 100%; }
+
+.rule-threshold {
+  font-size: 13px;
+  color: #176b87;
+  background: #eef5fb;
+  border-radius: 999px;
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+
+.rule-list {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 12px;
+}
+
+.rule-list li { padding-left: 4px; }
+.rule-list strong { display: block; margin-bottom: 4px; }
+.rule-list p { margin: 0; color: #5b667a; line-height: 1.7; font-size: 14px; }
+
+.rule-foot, .archive-tip {
+  color: #69758c;
+  font-size: 13px;
+  margin: 14px 0 0;
+}
+
+.session-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.session {
+  border: 1px solid #dfe7f1;
+  border-radius: 8px;
+  padding: 14px;
+  background: #fbfcfe;
+}
+
+.session-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 10px;
+}
+
+.session-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.outcome {
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.outcome-待复核 { background: #fdf0e3; color: #b45309; }
+.outcome-已自动更新 { background: #e8f4ef; color: #14724f; }
+.outcome-放行 { background: #e7edff; color: #3348a0; }
+.outcome-退回 { background: #fbeae6; color: #a63a22; }
+
 .details {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -255,6 +435,8 @@ textarea {
   .app { padding: 18px; }
   .topbar, .workspace { grid-template-columns: 1fr; }
   .stack { justify-content: flex-start; }
-  .metrics { grid-template-columns: 1fr; }
-  .details { grid-template-columns: 1fr; }
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .details, .freeze-grid, .session-grid { grid-template-columns: 1fr; }
+  .counter-input { width: 100%; }
+  .toolbar-controls { width: 100%; }
 }
